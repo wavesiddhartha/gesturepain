@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScribbleFlow // NEXUS Mode</title>
+  
+  <!-- Google Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Load MediaPipe Dependencies via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --nexus-bg: #030408;
+      --nexus-panel: rgba(9, 11, 20, 0.75);
+      --nexus-border: rgba(6, 182, 212, 0.15);
+      --nexus-border-glow: rgba(6, 182, 212, 0.3);
+      --nexus-cyan: #06b6d4;
+      --nexus-purple: #a855f7;
+      --nexus-magenta: #ec4899;
+      --nexus-grid: rgba(6, 182, 212, 0.02);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #475569;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-sans: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-sans);
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--nexus-bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* NEXUS Cyber Grid Background */
+    body::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: 
+        linear-gradient(to right, var(--nexus-grid) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--nexus-grid) 1px, transparent 1px);
+      background-size: 40px 40px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Ambient Cyber Glows */
+    .nexus-glow {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.08;
+    }
+    .glow-cyan {
+      top: -100px;
+      right: 10%;
+      background: var(--nexus-cyan);
+    }
+    .glow-purple {
+      bottom: -150px;
+      left: 5%;
+      background: var(--nexus-purple);
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      background: rgba(3, 4, 8, 0.85);
+      border-bottom: 1px solid var(--nexus-border);
+      backdrop-filter: blur(20px);
+      z-index: 10;
+      position: relative;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .nexus-tag {
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid var(--nexus-cyan);
+      color: var(--nexus-cyan);
+      font-size: 0.65rem;
+      font-weight: 700;
+      font-family: var(--font-display);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.15);
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1.5rem;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+    }
+
+    .logo span {
+      color: var(--nexus-cyan);
+      text-shadow: 0 0 12px rgba(6, 182, 212, 0.4);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    /* Main Container Grid */
+    .app-workspace {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      flex: 1;
+      height: calc(100vh - 69px);
+      z-index: 5;
+      position: relative;
+      transition: grid-template-columns 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Sidebar Panel */
+    .sidebar {
+      background: var(--nexus-panel);
+      border-right: 1px solid var(--nexus-border);
+      backdrop-filter: blur(24px);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      overflow-y: auto;
+      z-index: 8;
+      box-shadow: 10px 0 30px rgba(0,0,0,0.3);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .panel-section-title {
+      font-family: var(--font-display);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-secondary);
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .panel-section-title::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--nexus-border);
+    }
+
+    /* Glass Cards */
+    .nexus-card {
+      background: rgba(15, 23, 42, 0.3);
+      border: 1px solid var(--nexus-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: all 0.25s ease;
+    }
+
+    .nexus-card:hover {
+      border-color: var(--nexus-border-glow);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.05);
+    }
+
+    /* Futuristic Color Palette */
+    .color-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.5rem;
+    }
+
+    .nexus-swatch {
+      aspect-ratio: 1;
+      border-radius: 6px;
+      cursor: pointer;
+      position: relative;
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .nexus-swatch::after {
+      content: "";
+      position: absolute;
+      top: -3px;
+      left: -3px;
+      right: -3px;
+      bottom: -3px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .nexus-swatch:hover {
+      transform: translateY(-2px);
+    }
+
+    .nexus-swatch.active::after {
+      border-color: var(--nexus-cyan);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+    }
+
+    /* Custom Controls (Sliders) */
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      font-family: var(--font-display);
+    }
+
+    .slider-labels span:last-child {
+      color: var(--nexus-cyan);
+      font-weight: 600;
+    }
+
+    .nexus-slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.08);
+      outline: none;
+    }
+
+    .nexus-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      background: var(--nexus-cyan);
+      box-shadow: 0 0 8px var(--nexus-cyan);
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .nexus-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Cyber Button Styles */
+    .nexus-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      background: rgba(6, 182, 212, 0.08);
+      border: 1px solid var(--nexus-cyan);
+      color: var(--text-primary);
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: var(--font-display);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.05);
+    }
+
+    .nexus-btn:hover {
+      background: var(--nexus-cyan);
+      color: #000;
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.35);
+      transform: translateY(-1px);
+    }
+
+    .nexus-btn:active {
+      transform: translateY(0);
+    }
+
+    .nexus-btn-secondary {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--text-muted);
+      color: var(--text-secondary);
+      box-shadow: none;
+    }
+
+    select.nexus-btn-secondary {
+      background: rgba(15, 23, 42, 0.65);
+      color: var(--text-primary);
+      border: 1px solid var(--nexus-border);
+      padding: 0.6rem;
+      border-radius: 8px;
+      outline: none;
+      width: 100%;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    select.nexus-btn-secondary option {
+      background: #090b14;
+      color: var(--text-primary);
+    }
+
+    .nexus-btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--text-secondary);
+      color: var(--text-primary);
+      box-shadow: none;
+    }
+
+    .nexus-btn-accent {
+      background: rgba(168, 85, 247, 0.1);
+      border-color: var(--nexus-purple);
+    }
+
+    .nexus-btn-accent:hover {
+      background: var(--nexus-purple);
+      color: #000;
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.35);
+    }
+
+    .nexus-btn-danger {
+      background: rgba(239, 68, 68, 0.08);
+      border-color: #ef4444;
+    }
+
+    .nexus-btn-danger:hover {
+      background: #ef4444;
+      color: white;
+      box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+    }
+
+    /* Kimi AI Card Panel */
+    .ai-description {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    /* Canvas Workspace Window */
+    .canvas-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      position: relative;
+      transition: padding 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .canvas-viewport {
+      position: relative;
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 16/9;
+      background: #010204;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+      border: 1px solid var(--nexus-border);
+      transition: max-width 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-radius 0.4s;
+    }
+
+    .output_canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1); /* Mirror view */
+      display: block;
+      z-index: 1;
+    }
+
+    /* SVG overlay for drawing animation */
+    .svg-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+      transform: scaleX(-1); /* Align mirror with canvas */
+    }
+
+    .animated-path {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 1200;
+      stroke-dashoffset: 1200;
+      animation: svgDraw 3.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+
+    @keyframes svgDraw {
+      to {
+        stroke-dashoffset: 0;
+      }
+    }
+
+    /* HUD Dashboard overlays */
+    .dashboard-hud {
+      position: absolute;
+      top: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(9, 11, 20, 0.85);
+      border: 1px solid var(--nexus-border);
+      border-radius: 8px;
+      padding: 0.5rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      backdrop-filter: blur(16px);
+      z-index: 10;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      transition: opacity 0.3s;
+    }
+
+    .hud-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: var(--text-muted);
+      transition: all 0.3s;
+    }
+
+    .hud-dot.drawing {
+      background: var(--nexus-cyan);
+      box-shadow: 0 0 10px var(--nexus-cyan);
+    }
+
+    .hud-dot.erasing {
+      background: var(--nexus-magenta);
+      box-shadow: 0 0 10px var(--nexus-magenta);
+    }
+
+    .hud-dot.hovering {
+      background: var(--nexus-purple);
+      box-shadow: 0 0 10px var(--nexus-purple);
+    }
+
+    .hud-dot.thinking {
+      background: #eab308;
+      box-shadow: 0 0 10px #eab308;
+      animation: pulse 1s infinite alternate;
+    }
+
+    @keyframes pulse {
+      to { opacity: 0.4; }
+    }
+
+    .hud-status-txt {
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* Fullscreen/Zen Mode Styles */
+    body.zen-mode header {
+      transform: translateY(-100%);
+    }
+
+    body.zen-mode .app-workspace {
+      grid-template-columns: 0px 1fr;
+      height: 100vh;
+    }
+
+    body.zen-mode .sidebar {
+      transform: translateX(-350px);
+    }
+
+    body.zen-mode .canvas-container {
+      padding: 0;
+    }
+
+    body.zen-mode .canvas-viewport {
+      max-width: 100%;
+      height: 100vh;
+      border-radius: 0;
+      border: none;
+    }
+
+    body.zen-mode .dashboard-hud {
+      opacity: 0.15;
+    }
+    body.zen-mode .dashboard-hud:hover {
+      opacity: 1.0;
+    }
+
+    /* Loader screens */
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #030408;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      z-index: 20;
+      transition: opacity 0.5s ease;
+    }
+
+    .cube-spinner {
+      width: 40px;
+      height: 40px;
+      border: 2px solid var(--nexus-cyan);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+      animation: cubeRotate 1.5s infinite ease-in-out;
+    }
+
+    @keyframes cubeRotate {
+      0% { transform: scale(0.5) rotate(0deg); }
+      50% { transform: scale(1) rotate(180deg); }
+      100% { transform: scale(0.5) rotate(360deg); }
+    }
+
+    .guide-box {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .guide-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .guide-visual {
+      width: 32px;
+      height: 32px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--nexus-border);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      font-family: var(--font-display);
+    }
+  </style>
+</head>
+<body>
+  <div class="nexus-glow glow-cyan"></div>
+  <div class="nexus-glow glow-purple"></div>
+
+  <!-- Header -->
+  <header id="header">
+    <div class="logo-container">
+      <div class="logo">SCRIBBLE<span>FLOW</span></div>
+      <div class="nexus-tag">NEXUS v2.6</div>
+    </div>
+    <div class="header-actions">
+      <button class="nexus-btn nexus-btn-secondary" id="zenBtn">Zen Mode [F]</button>
+      <button class="nexus-btn nexus-btn-secondary" id="saveBtn">Export PNG</button>
+      <button class="nexus-btn nexus-btn-danger" id="clearBtnHeader">Wipe Canvas</button>
+    </div>
+  </header>
+
+  <!-- Main Grid Workspace -->
+  <div class="app-workspace">
+    <!-- Sidebar Controls -->
+    <div class="sidebar" id="sidebar">
+      
+      <!-- AI Redraw Panel -->
+      <div>
+        <h3 class="panel-section-title">AI GENERATE ENGINE</h3>
+        <div class="nexus-card">
+          <p class="ai-description">Scribble a rough concept, then click generate. Kimi AI will recreate a clean line-art version.</p>
+          <button class="nexus-btn nexus-btn-accent" id="aiBtn">
+            🔮 REDRAW SCRIBBLE
+          </button>
+          <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 0.5rem 0;"></div>
+          <p class="ai-description">Or type what you want to draw:</p>
+          <div style="display: flex; gap: 0.4rem;">
+            <input type="text" id="aiPromptInput" placeholder="e.g. butterfly, rocket, cat" style="flex:1; background: rgba(0,0,0,0.3); border: 1px solid var(--nexus-border); border-radius: 6px; padding: 0.4rem 0.6rem; color: #fff; font-size: 0.8rem; outline:none; font-family:var(--font-sans);">
+            <button class="nexus-btn" id="aiPromptBtn" style="padding: 0.4rem 0.8rem; font-size: 0.75rem;">Draw</button>
+          </div>
+          <div id="aiResponseLabel" style="font-size:0.75rem; color:var(--nexus-cyan); font-family:var(--font-display); text-align:center; font-weight:700; margin-top:0.25rem;">
+            Awaiting drawing...
+          </div>
+        </div>
+      </div>
+
+      <!-- OBJECT TRANSFORM PANEL (Visible during editing) -->
+      <div id="transformPanel" style="display: none;">
+        <h3 class="panel-section-title" style="color: var(--nexus-purple);">OBJECT EDIT MODE</h3>
+        <div class="nexus-card" style="border-color: rgba(168, 85, 247, 0.3); box-shadow: 0 0 15px rgba(168, 85, 247, 0.08);">
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Position X</span>
+              <span id="transXVal">0px</span>
+            </div>
+            <input type="range" class="nexus-slider" id="transXSlider" min="-500" max="500" value="0">
+          </div>
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Position Y</span>
+              <span id="transYVal">0px</span>
+            </div>
+            <input type="range" class="nexus-slider" id="transYSlider" min="-350" max="350" value="0">
+          </div>
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Size Scale</span>
+              <span id="transScaleVal">1.0x</span>
+            </div>
+            <input type="range" class="nexus-slider" id="transScaleSlider" min="20" max="300" value="100">
+          </div>
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Rotation</span>
+              <span id="transRotVal">0°</span>
+            </div>
+            <input type="range" class="nexus-slider" id="transRotSlider" min="0" max="360" value="0">
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <button class="nexus-btn nexus-btn-accent" id="confirmPlaceBtn" style="padding:0.5rem; font-size:0.75rem;">Place</button>
+            <button class="nexus-btn nexus-btn-danger" id="discardPlaceBtn" style="padding:0.5rem; font-size:0.75rem; background:rgba(239,68,68,0.1); border-color:#ef4444; color:#fff;">Discard</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Brush Config Panel -->
+      <div>
+        <h3 class="panel-section-title">BRUSH SETTINGS</h3>
+        <div class="nexus-card">
+          <div class="color-container">
+            <span class="slider-labels"><span>Active Color</span></span>
+            <div class="color-grid" id="colorGrid">
+              <!-- Swatches injected by JS -->
+            </div>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Brush Size</span>
+              <span id="brushSizeVal">6px</span>
+            </div>
+            <input type="range" class="nexus-slider" id="brushSize" min="2" max="30" value="6">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Eraser Size</span>
+              <span id="eraserSizeVal">60px</span>
+            </div>
+            <input type="range" class="nexus-slider" id="eraserSize" min="20" max="150" value="60">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Camera Opacity</span>
+              <span id="cameraOpacityVal">100%</span>
+            </div>
+            <input type="range" class="nexus-slider" id="cameraOpacity" min="10" max="100" value="100">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Smooth Stroke</span>
+              <span id="stabilizerVal">High</span>
+            </div>
+            <input type="range" class="nexus-slider" id="stabilizerSlider" min="1" max="10" value="7">
+          </div>
+        </div>
+      </div>
+
+      <!-- Study & Calibration Panel -->
+      <div>
+        <h3 class="panel-section-title">STUDY & CALIBRATE</h3>
+        <div class="nexus-card">
+          <div class="slider-group">
+            <span class="slider-labels"><span>Trace Guide Template</span></span>
+            <select id="traceTemplate" class="nexus-btn-secondary">
+              <option value="none">No Guide (Free Draw)</option>
+              <option value="cat">Study: Cute Cat</option>
+              <option value="rocket">Study: Spaceship</option>
+              <option value="cup">Study: Coffee Cup</option>
+              <option value="butterfly">Study: Butterfly</option>
+            </select>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-labels">
+              <span>Pinch Sensitivity</span>
+              <span id="pinchSensVal">0.45</span>
+            </div>
+            <input type="range" class="nexus-slider" id="pinchSensSlider" min="20" max="70" value="45">
+          </div>
+        </div>
+      </div>
+
+      <!-- Gestures Panel -->
+      <div>
+        <h3 class="panel-section-title">GESTURE CONTROLS</h3>
+        <div class="nexus-card guide-box">
+          <div class="guide-row">
+            <div class="guide-visual">👌</div>
+            <div><strong>Pinch to Draw</strong><br><span style="font-size:0.75rem; color:var(--text-secondary)">Touch Thumb & Index finger to draw.</span></div>
+          </div>
+          <div class="guide-row">
+            <div class="guide-visual">🖐️</div>
+            <div><strong>Release to Stop</strong><br><span style="font-size:0.75rem; color:var(--text-secondary)">Open pinch (increase gap) to stop.</span></div>
+          </div>
+          <div class="guide-row">
+            <div class="guide-visual">✌️</div>
+            <div><strong>Erase Mode</strong><br><span style="font-size:0.75rem; color:var(--text-secondary)">Raise Index & Middle fingers to erase.</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Canvas Workspace Viewport -->
+    <div class="canvas-container">
+      
+      <!-- HUD Dashboard Overlay -->
+      <div class="dashboard-hud">
+        <div class="hud-dot" id="hudDot"></div>
+        <span class="hud-status-txt" id="hudStatus">Initializing...</span>
+        <div style="width: 1px; height: 12px; background: rgba(255,255,255,0.15);"></div>
+        <span style="color: var(--text-secondary); font-size: 0.75rem;">[C] WIPE // [F] ZEN</span>
+      </div>
+
+      <div class="canvas-viewport">
+        <!-- Loader Screen -->
+        <div class="loading-overlay" id="loadingOverlay">
+          <div class="cube-spinner"></div>
+          <p id="loadingMsg" style="font-family: var(--font-display); font-size: 0.9rem; letter-spacing: 1px; text-transform: uppercase;">Booting Nexus systems...</p>
+        </div>
+
+        <video class="input_video" autoplay playsinline></video>
+        <canvas class="output_canvas" id="canvas"></canvas>
+        <svg class="svg-overlay" id="svgOverlay"></svg>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module">
+    const videoElement = document.getElementsByClassName('input_video')[0];
+    const canvasElement = document.getElementById('canvas');
+    const ctx = canvasElement.getContext('2d');
+    const svgOverlay = document.getElementById('svgOverlay');
+
+    const hudDot = document.getElementById('hudDot');
+    const hudStatus = document.getElementById('hudStatus');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingMsg = document.getElementById('loadingMsg');
+
+    // UI Sliders
+    const brushSizeSlider = document.getElementById('brushSize');
+    const brushSizeVal = document.getElementById('brushSizeVal');
+    const eraserSizeSlider = document.getElementById('eraserSize');
+    const eraserSizeVal = document.getElementById('eraserSizeVal');
+    const cameraOpacitySlider = document.getElementById('cameraOpacity');
+    const cameraOpacityVal = document.getElementById('cameraOpacityVal');
+    const stabilizerSlider = document.getElementById('stabilizerSlider');
+    const stabilizerVal = document.getElementById('stabilizerVal');
+    
+    // Study & Calibrate Elements
+    const traceTemplateSelect = document.getElementById('traceTemplate');
+    const pinchSensSlider = document.getElementById('pinchSensSlider');
+    const pinchSensVal = document.getElementById('pinchSensVal');
+
+    const clearBtnHeader = document.getElementById('clearBtnHeader');
+    const zenBtn = document.getElementById('zenBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const colorGrid = document.getElementById('colorGrid');
+    const aiBtn = document.getElementById('aiBtn');
+    const aiResponseLabel = document.getElementById('aiResponseLabel');
+
+    // Text-to-Drawing & Transform Elements
+    const aiPromptInput = document.getElementById('aiPromptInput');
+    const aiPromptBtn = document.getElementById('aiPromptBtn');
+    const transformPanel = document.getElementById('transformPanel');
+    const transXSlider = document.getElementById('transXSlider');
+    const transXVal = document.getElementById('transXVal');
+    const transYSlider = document.getElementById('transYSlider');
+    const transYVal = document.getElementById('transYVal');
+    const transScaleSlider = document.getElementById('transScaleSlider');
+    const transScaleVal = document.getElementById('transScaleVal');
+    const transRotSlider = document.getElementById('transRotSlider');
+    const transRotVal = document.getElementById('transRotVal');
+    const confirmPlaceBtn = document.getElementById('confirmPlaceBtn');
+    const discardPlaceBtn = document.getElementById('discardPlaceBtn');
+
+    // Frame Dimensions
+    const width = 1280;
+    const height = 720;
+    canvasElement.width = width;
+    canvasElement.height = height;
+    svgOverlay.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+    // Offscreen Canvas for drawing persistence
+    const drawCanvas = document.createElement('canvas');
+    drawCanvas.width = width;
+    drawCanvas.height = height;
+    const drawCtx = drawCanvas.getContext('2d');
+    drawCtx.lineCap = 'round';
+    drawCtx.lineJoin = 'round';
+
+    // Application state
+    let brushColor = '#06b6d4'; // Nexus Cyber Cyan default
+    let brushSize = 6;
+    let eraserSize = 60;
+    let cameraOpacity = 1.0;
+    let smoothingFactor = 0.7; // Coordinate stabilization
+    let isAIGenerating = false;
+    let currentTemplate = 'none'; // Tracing template guide
+    let pinchThreshold = 0.45;    // Calibration parameter
+
+    // Object Transform State
+    let transformMode = false;
+    let transX = 0;
+    let transY = 0;
+    let transScale = 1.0;
+    let transRot = 0; // degrees
+    let tempPaths = [];
+    let tempLabel = "";
+
+    // Smoothing Coordinate Buffer
+    let prevX = null;
+    let prevY = null;
+    let smoothX = null;
+    let smoothY = null;
+
+    // Palette Colors (NEXUS Signature Neon Hues)
+    const palette = [
+      '#06b6d4', // Cyber Cyan
+      '#a855f7', // Purple
+      '#ec4899', // Hot Magenta
+      '#10b981', // Emerald
+      '#f59e0b', // Yellow
+      '#f97316', // Orange
+      '#3b82f6', // Cobalt Blue
+      '#ef4444', // Red
+      '#f8fafc', // Tech White
+      '#475569'  // Tech Slate
+    ];
+
+    // Initialize Color Palette Swatches
+    palette.forEach((color, idx) => {
+      const swatch = document.createElement('div');
+      swatch.className = `nexus-swatch ${idx === 0 ? 'active' : ''}`;
+      swatch.style.backgroundColor = color;
+      swatch.style.boxShadow = `0 2px 8px ${color}33`;
+      swatch.addEventListener('click', () => {
+        document.querySelectorAll('.nexus-swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        brushColor = color;
+      });
+      colorGrid.appendChild(swatch);
+    });
+
+    // Event Bindings
+    brushSizeSlider.addEventListener('input', (e) => {
+      brushSize = parseInt(e.target.value);
+      brushSizeVal.innerText = `${brushSize}px`;
+    });
+
+    eraserSizeSlider.addEventListener('input', (e) => {
+      eraserSize = parseInt(e.target.value);
+      eraserSizeVal.innerText = `${eraserSize}px`;
+    });
+
+    cameraOpacitySlider.addEventListener('input', (e) => {
+      cameraOpacity = parseInt(e.target.value) / 100;
+      cameraOpacityVal.innerText = `${e.target.value}%`;
+    });
+
+    stabilizerSlider.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      smoothingFactor = val / 10;
+      if (val >= 8) stabilizerVal.innerText = "Maximum";
+      else if (val >= 5) stabilizerVal.innerText = "High";
+      else if (val >= 2) stabilizerVal.innerText = "Medium";
+      else stabilizerVal.innerText = "Low";
+    });
+
+    // Study & Calibrate Listeners
+    traceTemplateSelect.addEventListener('change', (e) => {
+      currentTemplate = e.target.value;
+    });
+
+    pinchSensSlider.addEventListener('input', (e) => {
+      pinchThreshold = parseInt(e.target.value) / 100;
+      pinchSensVal.innerText = pinchThreshold.toFixed(2);
+    });
+
+    // Object Transform Listeners
+    transXSlider.addEventListener('input', (e) => {
+      transX = parseInt(e.target.value);
+      transXVal.innerText = `${transX}px`;
+    });
+
+    transYSlider.addEventListener('input', (e) => {
+      transY = parseInt(e.target.value);
+      transYVal.innerText = `${transY}px`;
+    });
+
+    transScaleSlider.addEventListener('input', (e) => {
+      transScale = parseInt(e.target.value) / 100;
+      transScaleVal.innerText = `${transScale.toFixed(1)}x`;
+    });
+
+    transRotSlider.addEventListener('input', (e) => {
+      transRot = parseInt(e.target.value);
+      transRotVal.innerText = `${transRot}°`;
+    });
+
+    confirmPlaceBtn.addEventListener('click', () => {
+      if (!transformMode) return;
+
+      drawCtx.save();
+      // Apply translation, scaling, and rotation to canvas context before drawing the paths
+      drawCtx.translate(width / 2 + transX, height / 2 + transY);
+      drawCtx.scale(transScale, transScale);
+      drawCtx.rotate((transRot * Math.PI) / 180);
+      // Translate back relative to center
+      drawCtx.translate(-width / 2, -height / 2);
+
+      tempPaths.forEach(pathStr => {
+        const path2d = new Path2D(pathStr);
+        drawCtx.strokeStyle = brushColor;
+        drawCtx.lineWidth = brushSize;
+        drawCtx.shadowColor = brushColor;
+        drawCtx.shadowBlur = brushSize * 1.5;
+        drawCtx.stroke(path2d);
+        drawCtx.shadowBlur = 0; // reset
+      });
+      drawCtx.restore();
+
+      exitTransformMode();
+    });
+
+    discardPlaceBtn.addEventListener('click', () => {
+      exitTransformMode();
+    });
+
+    function enterTransformMode(label, paths) {
+      transformMode = true;
+      tempPaths = paths;
+      tempLabel = label;
+      
+      const sidebar = document.getElementById('sidebar');
+      for (let i = 0; i < sidebar.children.length; i++) {
+        const child = sidebar.children[i];
+        if (child.id === 'transformPanel') {
+          child.style.display = 'block';
+        } else if (child.tagName === 'DIV') {
+          child.style.display = 'none';
+        }
+      }
+      
+      aiResponseLabel.innerText = `Adjusting: "${label}"`;
+      aiResponseLabel.style.color = "var(--nexus-purple)";
+    }
+
+    function exitTransformMode() {
+      transformMode = false;
+      tempPaths = [];
+      tempLabel = "";
+      
+      const sidebar = document.getElementById('sidebar');
+      for (let i = 0; i < sidebar.children.length; i++) {
+        const child = sidebar.children[i];
+        if (child.id === 'transformPanel') {
+          child.style.display = 'none';
+        } else if (child.tagName === 'DIV') {
+          child.style.display = 'block';
+        }
+      }
+      
+      // Reset sliders
+      transXSlider.value = 0; transXVal.innerText = '0px'; transX = 0;
+      transYSlider.value = 0; transYVal.innerText = '0px'; transY = 0;
+      transScaleSlider.value = 100; transScaleVal.innerText = '1.0x'; transScale = 1.0;
+      transRotSlider.value = 0; transRotVal.innerText = '0°'; transRot = 0;
+      
+      aiResponseLabel.innerText = "Awaiting drawing...";
+      aiResponseLabel.style.color = "var(--nexus-cyan)";
+    }
+
+    // Reset Canvas
+    function clearDrawing() {
+      drawCtx.clearRect(0, 0, width, height);
+      svgOverlay.innerHTML = '';
+      aiResponseLabel.innerText = "Awaiting drawing...";
+      aiResponseLabel.style.color = "var(--nexus-cyan)";
+    }
+    clearBtnHeader.addEventListener('click', clearDrawing);
+
+    // Zen Mode Viewport toggle
+    function toggleZenMode() {
+      document.body.classList.toggle('zen-mode');
+    }
+    zenBtn.addEventListener('click', toggleZenMode);
+
+    // Export masterpiece PNG
+    saveBtn.addEventListener('click', () => {
+      const mergeCanvas = document.createElement('canvas');
+      mergeCanvas.width = width;
+      mergeCanvas.height = height;
+      const mergeCtx = mergeCanvas.getContext('2d');
+      
+      // Mirror and draw webcam background
+      mergeCtx.translate(width, 0);
+      mergeCtx.scale(-1, 1);
+      mergeCtx.drawImage(videoElement, 0, 0, width, height);
+      mergeCtx.setTransform(1, 0, 0, 1, 0, 0);
+      
+      // Draw persistent drawings
+      mergeCtx.drawImage(drawCanvas, 0, 0, width, height);
+
+      const link = document.createElement('a');
+      link.download = 'nexus-artwork.png';
+      link.href = mergeCanvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Ignore shortcuts when user is typing in form inputs
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+        return;
+      }
+      const key = e.key.toLowerCase();
+      if (key === 'c') {
+        clearDrawing();
+      } else if (key === 'f') {
+        toggleZenMode();
+      } else if (key === 'g' && !isAIGenerating) {
+        aiBtn.click();
+      } else if (!isNaN(key)) {
+        const idx = parseInt(key) - 1;
+        if (idx >= 0 && idx < palette.length) {
+          const swatches = document.querySelectorAll('.nexus-swatch');
+          if (swatches[idx]) swatches[idx].click();
+        }
+      }
+    });
+
+    // Kimi AI drawing generator call
+    aiBtn.addEventListener('click', async () => {
+      if (isAIGenerating) return;
+      
+      isAIGenerating = true;
+      aiBtn.disabled = true;
+      aiBtn.innerText = "🧠 THINKING...";
+      aiResponseLabel.innerText = "Kimi AI is analyzing drawing...";
+      aiResponseLabel.style.color = "#eab308";
+      
+      // Capture drawing layer as Base64 Image
+      const drawingDataURL = drawCanvas.toDataURL('image/png');
+
+      try {
+        const response = await fetch('http://localhost:5001/api/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ image: drawingDataURL })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // Animate the drawing in SVG Overlay
+        animateAIDrawing(data.label, data.paths);
+
+      } catch (err) {
+        console.error(err);
+        aiResponseLabel.innerText = "Redraw failed. Try again.";
+        aiResponseLabel.style.color = "#ef4444";
+        isAIGenerating = false;
+        aiBtn.disabled = false;
+        aiBtn.innerText = "🔮 REDRAW SCRIBBLE";
+      }
+    });
+
+    aiPromptBtn.addEventListener('click', async () => {
+      const promptText = aiPromptInput.value.trim();
+      if (!promptText || isAIGenerating) return;
+
+      isAIGenerating = true;
+      aiPromptBtn.disabled = true;
+      aiPromptBtn.innerText = "...";
+      aiResponseLabel.innerText = "Kimi AI is drawing from text...";
+      aiResponseLabel.style.color = "#eab308";
+
+      try {
+        const response = await fetch('http://localhost:5001/api/generate_text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ prompt: promptText })
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        // Enter object edit mode instead of direct commit
+        animateAIDrawing(data.label, data.paths);
+        aiPromptInput.value = ""; // Clear input
+
+      } catch (err) {
+        console.error(err);
+        aiResponseLabel.innerText = "Text Draw failed. Try again.";
+        aiResponseLabel.style.color = "#ef4444";
+      } finally {
+        isAIGenerating = false;
+        aiPromptBtn.disabled = false;
+        aiPromptBtn.innerText = "Draw";
+      }
+    });
+
+    // Also support Enter key in the text input box
+    aiPromptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        aiPromptBtn.click();
+      }
+    });
+
+    function animateAIDrawing(label, paths) {
+      // Clear current canvas drawing layer to prepare for redraw
+      drawCtx.clearRect(0, 0, width, height);
+      svgOverlay.innerHTML = '';
+
+      aiResponseLabel.innerText = `Kimi AI generated: "${label}"`;
+      aiResponseLabel.style.color = "var(--nexus-cyan)";
+
+      // Inject paths to SVG overlay
+      paths.forEach(pathStr => {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathStr);
+        path.setAttribute('class', 'animated-path');
+        path.setAttribute('stroke', brushColor);
+        path.setAttribute('stroke-width', brushSize);
+        svgOverlay.appendChild(path);
+      });
+
+      // Wait 3.5s for the CSS stroke-dashoffset animation to complete
+      setTimeout(() => {
+        // Clear and hide the SVG overlay
+        svgOverlay.innerHTML = '';
+        
+        isAIGenerating = false;
+        aiBtn.disabled = false;
+        aiBtn.innerText = "🔮 REDRAW SCRIBBLE";
+
+        // Enter object transform mode to allow positioning/scaling
+        enterTransformMode(label, paths);
+      }, 3500);
+    }
+
+    // MediaPipe Hand Landmarks Processing
+    function onResults(results) {
+      if (loadingOverlay.style.display !== 'none') {
+        loadingOverlay.style.opacity = 0;
+        setTimeout(() => loadingOverlay.style.display = 'none', 500);
+      }
+
+      ctx.save();
+      ctx.clearRect(0, 0, width, height);
+
+      // 1. Draw webcam feed background
+      ctx.globalAlpha = cameraOpacity;
+      ctx.drawImage(results.image, 0, 0, width, height);
+      ctx.globalAlpha = 1.0;
+
+      // Draw Trace Guide Template
+      drawTemplate(currentTemplate);
+
+      let currentMode = "Hovering";
+      let cursorX = null;
+      let cursorY = null;
+      let normalizedPinchDist = undefined;
+      let isPinching = false;
+
+      // Handle AI Thinking state override
+      if (isAIGenerating) {
+        currentMode = "Thinking";
+      } else if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+
+        // Calculate hand scale (depth invariant metric): Distance between Wrist (0) and Middle MCP (9)
+        const wrist = landmarks[0];
+        const middleMcp = landmarks[9];
+        const handScale = Math.sqrt(
+          Math.pow(wrist.x - middleMcp.x, 2) + 
+          Math.pow(wrist.y - middleMcp.y, 2)
+        );
+
+        // Distance between Thumb Tip (4) and Index Tip (8)
+        const thumbTip = landmarks[4];
+        const indexTip = landmarks[8];
+        const pinchDist = Math.sqrt(
+          Math.pow(thumbTip.x - indexTip.x, 2) + 
+          Math.pow(thumbTip.y - indexTip.y, 2)
+        );
+
+        // Normalize distance by hand scale
+        normalizedPinchDist = pinchDist / (handScale || 1);
+
+        // Pinch trigger threshold: touch index and thumb together (calibrated threshold)
+        isPinching = normalizedPinchDist < pinchThreshold;
+
+        // Finger classification for other modes:
+        const indexUp = landmarks[8].y < landmarks[6].y;
+        const middleUp = landmarks[12].y < landmarks[10].y;
+        const ringUp = landmarks[16].y < landmarks[14].y;
+        const pinkyUp = landmarks[20].y < landmarks[18].y;
+
+        const rawX = landmarks[8].x * width;
+        const rawY = landmarks[8].y * height;
+
+        // Exponential coordinate smoothing filter
+        if (smoothX === null || smoothY === null) {
+          smoothX = rawX;
+          smoothY = rawY;
+        } else {
+          smoothX = (smoothingFactor * smoothX) + ((1 - smoothingFactor) * rawX);
+          smoothY = (smoothingFactor * smoothY) + ((1 - smoothingFactor) * rawY);
+        }
+
+        cursorX = smoothX;
+        cursorY = smoothY;
+
+        // Determine Mode:
+        if (isPinching) {
+          // Drawing Mode (touching index & thumb)
+          currentMode = "Drawing";
+
+          // Stroke details
+          drawCtx.strokeStyle = brushColor;
+          drawCtx.lineWidth = brushSize;
+          drawCtx.shadowColor = brushColor;
+          drawCtx.shadowBlur = brushSize * 1.5;
+
+          if (prevX !== null && prevY !== null) {
+            drawCtx.beginPath();
+            drawCtx.moveTo(prevX, prevY);
+            drawCtx.lineTo(cursorX, cursorY);
+            drawCtx.stroke();
+          }
+          prevX = cursorX;
+          prevY = cursorY;
+
+        } else if (indexUp && middleUp && !ringUp && !pinkyUp) {
+          // Eraser Mode (index and middle fingers up, and not pinching)
+          currentMode = "Erasing";
+
+          drawCtx.save();
+          drawCtx.globalCompositeOperation = 'destination-out';
+          drawCtx.beginPath();
+          drawCtx.arc(cursorX, cursorY, eraserSize / 2, 0, Math.PI * 2);
+          drawCtx.fill();
+          drawCtx.restore();
+
+          prevX = null;
+          prevY = null;
+        } else {
+          // Hover Mode
+          currentMode = "Hovering";
+          prevX = null;
+          prevY = null;
+        }
+      } else {
+        prevX = null;
+        prevY = null;
+        smoothX = null;
+        smoothY = null;
+      }
+
+      // 2. Draw persistent drawing layer (scribbles + Kimi AI drawings)
+      ctx.drawImage(drawCanvas, 0, 0, width, height);
+
+      // If in Object Transform Mode, draw the transforming outline preview
+      if (transformMode && tempPaths.length > 0) {
+        ctx.save();
+        
+        const cx = width / 2;
+        const cy = height / 2;
+        
+        // Apply transformation matrix
+        ctx.translate(cx + transX, cy + transY);
+        ctx.scale(transScale, transScale);
+        ctx.rotate((transRot * Math.PI) / 180);
+        ctx.translate(-cx, -cy);
+
+        // Draw dotted bounding box around the 600x450 drawing region
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)'; // Cyber Purple boundary
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 6]);
+        ctx.strokeRect(cx - 300, cy - 225, 600, 450);
+
+        // Draw bounding box handles
+        ctx.fillStyle = 'var(--nexus-purple)';
+        ctx.fillRect(cx - 304, cy - 229, 8, 8);
+        ctx.fillRect(cx + 296, cy - 229, 8, 8);
+        ctx.fillRect(cx - 304, cy + 221, 8, 8);
+        ctx.fillRect(cx + 296, cy + 221, 8, 8);
+
+        // Draw the temporary paths
+        tempPaths.forEach(pathStr => {
+          const path2d = new Path2D(pathStr);
+          ctx.strokeStyle = brushColor;
+          ctx.lineWidth = brushSize;
+          ctx.shadowColor = brushColor;
+          ctx.shadowBlur = brushSize * 1.5;
+          ctx.stroke(path2d);
+          ctx.shadowBlur = 0;
+        });
+
+        ctx.restore();
+      }
+
+      // 3. Draw Cyber cursor indicators on screen
+      if (cursorX !== null && cursorY !== null && !isAIGenerating) {
+        // Draw the pinch distance visual feedback ring (only when hand is in hover/drawing mode, i.e. not erasing)
+        if (currentMode !== "Erasing" && typeof normalizedPinchDist !== 'undefined') {
+          ctx.save();
+          ctx.beginPath();
+          // Scale the radius of the feedback ring relative to how close they are to pinching
+          const ringRadius = Math.max(12, Math.min(80, normalizedPinchDist * 130));
+          ctx.arc(cursorX, cursorY, ringRadius, 0, Math.PI * 2);
+          
+          if (isPinching) {
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.7)'; // glowing cyan
+            ctx.shadowColor = 'var(--nexus-cyan)';
+            ctx.shadowBlur = 10;
+            ctx.lineWidth = 2.5;
+          } else {
+            // Fades out and turns amber as they pull apart
+            const ratio = Math.min(1.0, (normalizedPinchDist - pinchThreshold) / 0.5);
+            ctx.strokeStyle = `rgba(245, 158, 11, ${0.4 - ratio * 0.35})`; // amber transparent
+            ctx.lineWidth = 1.5;
+          }
+          ctx.stroke();
+          
+          // Draw text label below cursor
+          ctx.fillStyle = isPinching ? 'var(--nexus-cyan)' : 'rgba(255,255,255,0.4)';
+          ctx.font = 'bold 9px var(--font-display)';
+          ctx.textAlign = 'center';
+          ctx.shadowBlur = 0;
+          ctx.fillText(isPinching ? 'PINCH ACTIVE' : 'PINCH TO DRAW', cursorX, cursorY + ringRadius + 18);
+          ctx.restore();
+        }
+
+        // Draw primary cursor center dot
+        if (currentMode === "Drawing") {
+          ctx.beginPath();
+          ctx.arc(cursorX, cursorY, brushSize / 2 + 1, 0, Math.PI * 2);
+          ctx.fillStyle = brushColor;
+          ctx.shadowColor = brushColor;
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        } else if (currentMode === "Erasing") {
+          ctx.beginPath();
+          ctx.arc(cursorX, cursorY, eraserSize / 2, 0, Math.PI * 2);
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else {
+          // Hover dot
+          ctx.beginPath();
+          ctx.arc(cursorX, cursorY, 5, 0, Math.PI * 2);
+          ctx.fillStyle = 'var(--nexus-cyan)';
+          ctx.strokeStyle = 'white';
+          ctx.lineWidth = 1;
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+
+      // 4. Update HUD
+      hudStatus.innerText = currentMode;
+      hudDot.className = `hud-dot ${currentMode.toLowerCase()}`;
+
+      ctx.restore();
+    }
+
+    function drawTemplate(type) {
+      if (type === 'none') return;
+      
+      ctx.save();
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.25)'; // Cyber Cyan trace outline
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 6]); // Dashed guides
+      
+      const cx = width / 2;
+      const cy = height / 2;
+      
+      if (type === 'cat') {
+        // Head
+        ctx.beginPath();
+        ctx.arc(cx, cy + 20, 160, 0, Math.PI * 2);
+        ctx.stroke();
+        // Ears
+        ctx.beginPath();
+        ctx.moveTo(cx - 120, cy - 85);
+        ctx.lineTo(cx - 150, cy - 240);
+        ctx.lineTo(cx - 40, cy - 130);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(cx + 120, cy - 85);
+        ctx.lineTo(cx + 150, cy - 240);
+        ctx.lineTo(cx + 40, cy - 130);
+        ctx.stroke();
+        // Eyes
+        ctx.beginPath();
+        ctx.arc(cx - 60, cy - 10, 15, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + 60, cy - 10, 15, 0, Math.PI * 2);
+        ctx.stroke();
+        // Nose & Mouth
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + 30);
+        ctx.lineTo(cx - 15, cy + 15);
+        ctx.lineTo(cx + 15, cy + 15);
+        ctx.closePath();
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.arc(cx - 20, cy + 45, 20, Math.PI, 0, true);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + 20, cy + 45, 20, Math.PI, 0, true);
+        ctx.stroke();
+        // Whiskers
+        ctx.beginPath();
+        ctx.moveTo(cx - 100, cy + 30); ctx.lineTo(cx - 180, cy + 20);
+        ctx.moveTo(cx - 100, cy + 50); ctx.lineTo(cx - 190, cy + 50);
+        ctx.moveTo(cx + 100, cy + 30); ctx.lineTo(cx + 180, cy + 20);
+        ctx.moveTo(cx + 100, cy + 50); ctx.lineTo(cx + 190, cy + 50);
+        ctx.stroke();
+        
+      } else if (type === 'rocket') {
+        // Body
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 70, 180, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        // Fins
+        ctx.beginPath();
+        ctx.moveTo(cx - 65, cy + 70);
+        ctx.lineTo(cx - 140, cy + 180);
+        ctx.lineTo(cx - 50, cy + 160);
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(cx + 65, cy + 70);
+        ctx.lineTo(cx + 140, cy + 180);
+        ctx.lineTo(cx + 50, cy + 160);
+        ctx.stroke();
+        // Window
+        ctx.beginPath();
+        ctx.arc(cx, cy - 40, 25, 0, Math.PI * 2);
+        ctx.stroke();
+        // Thrust Flame
+        ctx.beginPath();
+        ctx.moveTo(cx - 30, cy + 180);
+        ctx.lineTo(cx, cy + 260);
+        ctx.lineTo(cx + 30, cy + 180);
+        ctx.stroke();
+        
+      } else if (type === 'cup') {
+        // Body
+        ctx.beginPath();
+        ctx.moveTo(cx - 120, cy - 60);
+        ctx.lineTo(cx + 120, cy - 60);
+        ctx.lineTo(cx + 90, cy + 140);
+        ctx.lineTo(cx - 90, cy + 140);
+        ctx.closePath();
+        ctx.stroke();
+        // Handle
+        ctx.beginPath();
+        ctx.arc(cx + 120, cy + 40, 50, -Math.PI / 2, Math.PI / 2);
+        ctx.stroke();
+        // Plate
+        ctx.beginPath();
+        ctx.ellipse(cx, cy + 160, 170, 30, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        // Steam
+        ctx.beginPath();
+        ctx.moveTo(cx - 40, cy - 80);
+        ctx.bezierCurveTo(cx - 50, cy - 110, cx - 30, cy - 140, cx - 40, cy - 170);
+        ctx.moveTo(cx + 40, cy - 80);
+        ctx.bezierCurveTo(cx + 30, cy - 110, cx + 50, cy - 140, cx + 40, cy - 170);
+        ctx.stroke();
+        
+      } else if (type === 'butterfly') {
+        // Body
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 15, 120, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        // Wings Left
+        ctx.beginPath();
+        ctx.moveTo(cx - 10, cy - 40);
+        ctx.bezierCurveTo(cx - 200, cy - 200, cx - 220, cy - 30, cx - 15, cy - 10);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - 15, cy - 10);
+        ctx.bezierCurveTo(cx - 180, cy + 150, cx - 120, cy + 150, cx - 10, cy + 60);
+        ctx.stroke();
+        // Wings Right
+        ctx.beginPath();
+        ctx.moveTo(cx + 10, cy - 40);
+        ctx.bezierCurveTo(cx + 200, cy - 200, cx + 220, cy - 30, cx + 15, cy - 10);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx + 15, cy - 10);
+        ctx.bezierCurveTo(cx + 180, cy + 150, cx + 120, cy + 150, cx + 10, cy + 60);
+        ctx.stroke();
+        // Antennae
+        ctx.beginPath();
+        ctx.moveTo(cx - 5, cy - 120);
+        ctx.bezierCurveTo(cx - 20, cy - 160, cx - 50, cy - 170, cx - 60, cy - 160);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx + 5, cy - 120);
+        ctx.bezierCurveTo(cx + 20, cy - 160, cx + 50, cy - 170, cx + 60, cy - 160);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // MediaPipe initialization
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.75,
+      minTrackingConfidence: 0.75
+    });
+
+    hands.onResults(onResults);
+
+    // Initialize Camera Stream
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({ image: videoElement });
+      },
+      width: width,
+      height: height
+    });
+
+    camera.start().catch(err => {
+      console.error(err);
+      loadingMsg.innerHTML = '<span style="color:#ef4444; font-weight:700">Access Denied</span><br><br><span style="font-size:0.85rem; color:var(--text-secondary)">Camera access blocked. Click the camera icon in your address bar to grant access.</span>';
+      hudStatus.innerText = "Error";
+      hudDot.className = "hud-dot";
+    });
+  </script>
+</body>
+</html>
